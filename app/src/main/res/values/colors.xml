@@ -1,0 +1,6 @@
+<!-- In res/values/colors.xml -->
+<resources>
+    <color name="kotlin_keyword">#CC7832</color>
+    <color name="kotlin_comment">#808080</color>
+    <color name="kotlin_string">#6A8759</color>
+</resources>

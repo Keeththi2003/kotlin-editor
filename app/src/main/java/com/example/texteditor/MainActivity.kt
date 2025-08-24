@@ -7,12 +7,16 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.text.Editable
+import android.text.Spannable
 import android.text.TextWatcher
+import android.text.style.ForegroundColorSpan
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import java.util.*
+import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
 
@@ -32,6 +36,9 @@ class MainActivity : AppCompatActivity() {
     private var currentFileUri: Uri? = null
 
     private var lastFindIndex = 0
+
+    // Flag to prevent infinite loop when applying highlighting
+    private var isUpdatingText = false
 
     private val openFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { openFile(it) }
@@ -81,18 +88,30 @@ class MainActivity : AppCompatActivity() {
             private var previousText = ""
 
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-                previousText = s.toString()
+                if (!isUpdatingText) {
+                    previousText = s.toString()
+                }
             }
 
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
 
             override fun afterTextChanged(s: Editable?) {
+                if (isUpdatingText) {
+                    return
+                }
+
+                // Check for significant text changes to update undo/redo stacks
                 if (previousText != s.toString()) {
                     undoStack.push(previousText)
                     redoStack.clear()
                 }
+
+                // Update line numbers and word/char count
                 updateLineNumbers()
                 updateWordCharCount()
+                
+                // Apply syntax highlighting
+                s?.let { applyKotlinHighlighting(it) }
             }
         })
 
@@ -111,7 +130,7 @@ class MainActivity : AppCompatActivity() {
                     "Open" -> openFileLauncher.launch(arrayOf("*/*"))
                     "Save" -> {
                         if (currentFileUri != null) saveToUri(currentFileUri!!)
-                        else saveFileLauncher.launch("untitled.txt")
+                        else saveFileLauncher.launch("untitled.kt")
                     }
                     "Find/Replace" -> showFindReplaceDialog()
                 }
@@ -129,7 +148,81 @@ class MainActivity : AppCompatActivity() {
         cutButton.setOnClickListener { cut() }
         pasteButton.setOnClickListener { paste() }
 
-        fileName.text = "untitled.txt"
+        fileName.text = "untitled.kt"
+    }
+
+    /**
+     * Applies syntax highlighting for Kotlin code to the given Editable text.
+     * It uses regular expressions to identify keywords, comments, and strings
+     * and applies color spans.
+     *
+     * @param editable The Editable object from the EditText.
+     */
+    private fun applyKotlinHighlighting(editable: Editable) {
+        // A flag to prevent the TextWatcher from firing when we update the spans.
+        isUpdatingText = true
+
+        // 1. Define the colors from your resources
+        val keywordColor = ContextCompat.getColor(this, R.color.kotlin_keyword)
+        val commentColor = ContextCompat.getColor(this, R.color.kotlin_comment)
+        val stringColor = ContextCompat.getColor(this, R.color.kotlin_string)
+
+        // 2. Clear all existing spans to avoid layering and conflicts
+        val spans = editable.getSpans(0, editable.length, ForegroundColorSpan::class.java)
+        for (span in spans) {
+            editable.removeSpan(span)
+        }
+
+        // 3. Define the patterns for Kotlin syntax elements
+        // This is a simple list of common keywords. You can expand it.
+        val keywords = listOf(
+            "fun", "val", "var", "class", "object", "interface", "if", "else",
+            "when", "for", "while", "do", "return", "break", "continue", "is", "as",
+            "in", "package", "import"
+        )
+        val keywordPattern = Pattern.compile("\\b(${keywords.joinToString("|")})\\b")
+
+        // Regex for comments (single-line //)
+        val commentPattern = Pattern.compile("//.*")
+
+        // Regex for strings (double quotes)
+        val stringPattern = Pattern.compile("\"[^\"]*\"")
+
+        // 4. Find and highlight keywords
+        val keywordMatcher = keywordPattern.matcher(editable)
+        while (keywordMatcher.find()) {
+            editable.setSpan(
+                ForegroundColorSpan(keywordColor),
+                keywordMatcher.start(),
+                keywordMatcher.end(),
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        // 5. Find and highlight strings
+        val stringMatcher = stringPattern.matcher(editable)
+        while (stringMatcher.find()) {
+            editable.setSpan(
+                ForegroundColorSpan(stringColor),
+                stringMatcher.start(),
+                stringMatcher.end(),
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        // 6. Find and highlight comments
+        val commentMatcher = commentPattern.matcher(editable)
+        while (commentMatcher.find()) {
+            editable.setSpan(
+                ForegroundColorSpan(commentColor),
+                commentMatcher.start(),
+                commentMatcher.end(),
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+        
+        // Reset the flag.
+        isUpdatingText = false
     }
 
     // Undo / Redo
@@ -185,7 +278,7 @@ class MainActivity : AppCompatActivity() {
     // File operations
     private fun newFile() {
         editor.setText("")
-        fileName.text = "untitled.txt"
+        fileName.text = "untitled.kt"
         currentFileUri = null
         undoStack.clear()
         redoStack.clear()
@@ -212,7 +305,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getFileName(uri: Uri): String {
-        var name = "untitled.txt"
+        var name = "untitled.kt"
         contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
                 val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
