@@ -159,7 +159,7 @@ class MainActivity : AppCompatActivity() {
                     "Open" -> openFileLauncher.launch(arrayOf("*/*"))
                     "Save" -> {
                         if (currentFileUri != null) saveToUri(currentFileUri!!)
-                        else saveFileLauncher.launch("untitled.txt")
+                        else saveFileLauncher.launch("untitled.kt")
                     }
                     "Find/Replace" -> showFindReplaceDialog()
                 }
@@ -177,7 +177,7 @@ class MainActivity : AppCompatActivity() {
         cutButton.setOnClickListener { cut() }
         pasteButton.setOnClickListener { paste() }
 
-        fileName.text = "untitled.txt"
+        fileName.text = "untitled.kt"
     }
 
     /**
@@ -262,7 +262,7 @@ class MainActivity : AppCompatActivity() {
     // -- File Operations --
     private fun newFile() {
         editor.setText("")
-        fileName.text = "untitled.txt"
+        fileName.text = "untitled.kt"
         currentFileUri = null
         undoStack.clear()
         redoStack.clear()
@@ -308,7 +308,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getFileName(uri: Uri): String {
-        var name = "untitled.txt"
+        var name = "untitled.kt"
         contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
                 val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)

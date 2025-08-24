@@ -5,7 +5,7 @@
         android:allowBackup="true"
         android:label="Text Editor"
         android:supportsRtl="true"
-        android:theme="@style/Theme.Material3.DayNight.NoActionBar">
+        android:theme="@style/Theme.TextEditorApp"> <!-- Make sure this points to your new theme -->
 
         <activity
             android:name=".MainActivity"
