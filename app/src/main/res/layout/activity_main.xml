@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <!-- Top toolbar with hamburger menu, file name and undo/redo -->
+    <!-- Top toolbar with hamburger menu, file name, undo/redo -->
     <LinearLayout
         android:orientation="horizontal"
         android:layout_width="match_parent"
@@ -35,23 +35,23 @@
 
         <!-- Undo button -->
         <ImageButton
-            android:id="@+id/undoButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@android:drawable/ic_menu_revert"
-            android:background="@android:color/transparent"
-            app:tint="#FFFFFF"
-            android:contentDescription="Undo"/>
+        android:id="@+id/undoButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        app:srcCompat="@drawable/ic_undo_24"
+        app:tint="#FFFFFF"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Undo"/>
 
         <!-- Redo button -->
         <ImageButton
-            android:id="@+id/redoButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@android:drawable/ic_menu_rotate"
-            android:background="@android:color/transparent"
-            app:tint="#FFFFFF"
-            android:contentDescription="Redo"/>
+        android:id="@+id/redoButton"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        app:srcCompat="@drawable/ic_redo_24"
+        app:tint="#FFFFFF"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Redo"/>
     </LinearLayout>
 
     <!-- Editor area with line numbers -->
@@ -113,33 +113,35 @@
         android:layout_height="wrap_content"
         android:gravity="end"
         android:padding="8dp"
-        android:background="#CCCCCC">
+        android:background="#CCCCCC"
+        android:weightSum="3">
 
-        <ImageButton
-            android:id="@+id/copyButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@android:drawable/ic_menu_copy"
-            android:background="@android:color/transparent"
-            android:contentDescription="Copy"/>
+       <!-- Bottom bar (example) -->
+<ImageButton
+android:id="@+id/copyButton"
+android:layout_width="40dp"
+android:layout_height="40dp"
+app:srcCompat="@drawable/ic_content_copy_24"
+android:background="?attr/selectableItemBackgroundBorderless"
+android:contentDescription="Copy"/>
 
-        <ImageButton
-            android:id="@+id/cutButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@android:drawable/ic_menu_cut"
-            android:background="@android:color/transparent"
-            android:contentDescription="Cut"
-            android:layout_marginStart="8dp"/>
+<ImageButton
+android:id="@+id/cutButton"
+android:layout_width="40dp"
+android:layout_height="40dp"
+app:srcCompat="@drawable/ic_content_cut_24"
+android:layout_marginStart="8dp"
+android:background="?attr/selectableItemBackgroundBorderless"
+android:contentDescription="Cut"/>
 
-        <ImageButton
-            android:id="@+id/pasteButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:src="@android:drawable/ic_menu_paste"
-            android:background="@android:color/transparent"
-            android:contentDescription="Paste"
-            android:layout_marginStart="8dp"/>
+<ImageButton
+android:id="@+id/pasteButton"
+android:layout_width="40dp"
+android:layout_height="40dp"
+app:srcCompat="@drawable/ic_content_paste_24"
+android:layout_marginStart="8dp"
+android:background="?attr/selectableItemBackgroundBorderless"
+android:contentDescription="Paste"/>
+
     </LinearLayout>
-
 </LinearLayout>

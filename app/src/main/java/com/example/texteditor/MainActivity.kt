@@ -1,10 +1,8 @@
 package com.example.texteditor
 
-import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -14,7 +12,7 @@ import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import java.io.File
+import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
@@ -33,7 +31,8 @@ class MainActivity : AppCompatActivity() {
     private val redoStack = ArrayDeque<String>()
     private var currentFileUri: Uri? = null
 
-    // File picker result launcher
+    private var lastFindIndex = 0
+
     private val openFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { openFile(it) }
     }
@@ -62,13 +61,14 @@ class MainActivity : AppCompatActivity() {
         lineNumbers.textSize = editor.textSize / resources.displayMetrics.scaledDensity
         lineNumbers.typeface = editor.typeface
 
-        // Update line numbers & status
+        // Update line numbers & word/char count
         fun updateLineNumbers() {
             val lines = editor.lineCount
             val builder = StringBuilder()
             for (i in 1..lines) builder.append(i).append("\n")
             lineNumbers.text = builder.toString()
         }
+
         fun updateWordCharCount() {
             val text = editor.text.toString()
             val words = text.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }.size
@@ -76,7 +76,7 @@ class MainActivity : AppCompatActivity() {
             status.text = "Words: $words | Chars: $chars"
         }
 
-        // TextWatcher for undo/redo & line/word update
+        // TextWatcher for undo/redo & updates
         editor.addTextChangedListener(object : TextWatcher {
             private var previousText = ""
 
@@ -98,7 +98,7 @@ class MainActivity : AppCompatActivity() {
 
         editor.viewTreeObserver.addOnGlobalLayoutListener { updateLineNumbers() }
 
-        // Hamburger menu actions
+        // Hamburger menu
         menuButton.setOnClickListener {
             val popup = PopupMenu(this, it)
             popup.menu.add("New File")
@@ -109,7 +109,10 @@ class MainActivity : AppCompatActivity() {
                 when (item.title) {
                     "New File" -> newFile()
                     "Open" -> openFileLauncher.launch(arrayOf("*/*"))
-                    "Save" -> saveFileLauncher.launch(currentFileUri?.lastPathSegment ?: "untitled.txt")
+                    "Save" -> {
+                        if (currentFileUri != null) saveToUri(currentFileUri!!)
+                        else saveFileLauncher.launch("untitled.txt")
+                    }
                     "Find/Replace" -> showFindReplaceDialog()
                 }
                 true
@@ -117,11 +120,11 @@ class MainActivity : AppCompatActivity() {
             popup.show()
         }
 
-        // Top toolbar actions
+        // Top toolbar
         undoButton.setOnClickListener { undo() }
         redoButton.setOnClickListener { redo() }
 
-        // Bottom bar actions
+        // Bottom toolbar
         copyButton.setOnClickListener { copy() }
         cutButton.setOnClickListener { cut() }
         pasteButton.setOnClickListener { paste() }
@@ -129,7 +132,7 @@ class MainActivity : AppCompatActivity() {
         fileName.text = "untitled.txt"
     }
 
-    // Undo/Redo
+    // Undo / Redo
     private fun undo() {
         if (undoStack.isNotEmpty()) {
             redoStack.push(editor.text.toString())
@@ -137,6 +140,7 @@ class MainActivity : AppCompatActivity() {
             editor.setSelection(editor.text.length)
         }
     }
+
     private fun redo() {
         if (redoStack.isNotEmpty()) {
             undoStack.push(editor.text.toString())
@@ -145,20 +149,37 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Copy/Cut/Paste
+    // Copy / Cut / Paste
     private fun copy() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("text", editor.text.toString()))
+        val start = editor.selectionStart.coerceAtLeast(0)
+        val end = editor.selectionEnd.coerceAtLeast(0)
+        if (start != end) {
+            val textToCopy = editor.text.substring(start, end)
+            clipboard.setPrimaryClip(ClipData.newPlainText("text", textToCopy))
+        }
     }
+
     private fun cut() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboard.setPrimaryClip(ClipData.newPlainText("text", editor.text.toString()))
-        editor.setText("")
+        val start = editor.selectionStart.coerceAtLeast(0)
+        val end = editor.selectionEnd.coerceAtLeast(0)
+        if (start != end) {
+            val textToCut = editor.text.substring(start, end)
+            clipboard.setPrimaryClip(ClipData.newPlainText("text", textToCut))
+            editor.text.replace(start, end, "")
+        }
     }
+
     private fun paste() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = clipboard.primaryClip
-        clip?.let { editor.append(it.getItemAt(0).text) }
+        clip?.getItemAt(0)?.text?.let { textToPaste ->
+            val start = editor.selectionStart.coerceAtLeast(0)
+            val end = editor.selectionEnd.coerceAtLeast(0)
+            editor.text.replace(start, end, textToPaste)
+            editor.setSelection(start + textToPaste.length)
+        }
     }
 
     // File operations
@@ -201,7 +222,7 @@ class MainActivity : AppCompatActivity() {
         return name
     }
 
-    // Find/Replace dialog
+    // Find & Replace
     private fun showFindReplaceDialog() {
         val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val findEdit = EditText(this).apply { hint = "Find" }
@@ -228,13 +249,11 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    private var lastFindIndex = 0
     private fun findNext(query: String, caseSensitive: Boolean, wholeWord: Boolean) {
-        val text = editor.text.toString()
-        val flags = if (caseSensitive) 0 else RegexOption.IGNORE_CASE.value
+        if (query.isEmpty()) return
         val pattern = if (wholeWord) "\\b${Regex.escape(query)}\\b" else Regex.escape(query)
-        val regex = Regex(pattern, if (caseSensitive) setOf() else setOf(RegexOption.IGNORE_CASE))
-        val match = regex.find(text, lastFindIndex)
+        val regex = if (caseSensitive) Regex(pattern) else Regex(pattern, RegexOption.IGNORE_CASE)
+        val match = regex.find(editor.text.toString(), lastFindIndex)
         match?.let {
             editor.setSelection(it.range.first, it.range.last + 1)
             lastFindIndex = it.range.last + 1
@@ -244,17 +263,21 @@ class MainActivity : AppCompatActivity() {
     private fun replaceCurrent(find: String, replace: String, caseSensitive: Boolean, wholeWord: Boolean) {
         val selStart = editor.selectionStart
         val selEnd = editor.selectionEnd
-        if (selStart < selEnd && editor.text.substring(selStart, selEnd).matches(
-                if (wholeWord) Regex("\\b${Regex.escape(find)}\\b") else Regex.escape(find).toRegex()
-            )) {
-            editor.text.replace(selStart, selEnd, replace)
+        if (selStart < selEnd) {
+            val selectedText = editor.text.substring(selStart, selEnd)
+            val pattern = if (wholeWord) "\\b${Regex.escape(find)}\\b" else Regex.escape(find)
+            val regex = if (caseSensitive) Regex(pattern) else Regex(pattern, RegexOption.IGNORE_CASE)
+            if (regex.matches(selectedText)) {
+                editor.text.replace(selStart, selEnd, replace)
+            }
         }
         findNext(find, caseSensitive, wholeWord)
     }
 
     private fun replaceAll(find: String, replace: String, caseSensitive: Boolean, wholeWord: Boolean) {
+        if (find.isEmpty()) return
         val pattern = if (wholeWord) "\\b${Regex.escape(find)}\\b" else Regex.escape(find)
-        val regex = Regex(pattern, if (caseSensitive) setOf() else setOf(RegexOption.IGNORE_CASE))
+        val regex = if (caseSensitive) Regex(pattern) else Regex(pattern, RegexOption.IGNORE_CASE)
         editor.setText(regex.replace(editor.text.toString(), replace))
     }
 }

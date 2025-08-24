@@ -1,0 +1,10 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!-- two handles -->
+    <path android:fillColor="#000000" android:pathData="M9,7a3,3 0 1,1 -6,0a3,3 0 1,1 6,0z"/>
+    <path android:fillColor="#000000" android:pathData="M9,17a3,3 0 1,1 -6,0a3,3 0 1,1 6,0z"/>
+    <!-- blades as an X -->
+    <path android:fillColor="#000000" android:pathData="M10.5,8 L21,18 L19.6,19.4 L9.1,9.6z"/>
+    <path android:fillColor="#000000" android:pathData="M10.5,16 L21,6 L19.6,4.6 L9.1,14.4z"/>
+</vector>
