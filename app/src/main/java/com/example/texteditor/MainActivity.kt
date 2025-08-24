@@ -15,8 +15,29 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import android.graphics.Color
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
+import java.io.InputStream
 import java.util.*
 import java.util.regex.Pattern
+
+// Represents a single language's syntax rules
+data class LanguageRule(
+    @SerializedName("name") val name: String,
+    @SerializedName("fileExtensions") val fileExtensions: List<String>,
+    @SerializedName("keywordColor") val keywordColor: String,
+    @SerializedName("commentColor") val commentColor: String,
+    @SerializedName("stringColor") val stringColor: String,
+    @SerializedName("keywords") val keywords: List<String>,
+    @SerializedName("commentSymbols") val commentSymbols: List<String>,
+    val stringDelimiter: String
+)
+
+// Represents the top-level structure of the JSON file
+data class SyntaxRules(
+    @SerializedName("languages") val rules: List<LanguageRule>
+)
 
 class MainActivity : AppCompatActivity() {
 
@@ -35,10 +56,17 @@ class MainActivity : AppCompatActivity() {
     private val redoStack = ArrayDeque<String>()
     private var currentFileUri: Uri? = null
 
-    private var lastFindIndex = 0
-
-    // Flag to prevent infinite loop when applying highlighting
+    // A flag to prevent the TextWatcher from firing when we update the spans.
     private var isUpdatingText = false
+
+    // Store the loaded language rules
+    private var allRules: SyntaxRules? = null
+
+    // The currently active language rule
+    private var activeRule: LanguageRule? = null
+
+    // Last found index for Find & Replace
+    private var lastFindIndex = 0
 
     private val openFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { openFile(it) }
@@ -62,6 +90,9 @@ class MainActivity : AppCompatActivity() {
         copyButton = findViewById(R.id.copyButton)
         cutButton = findViewById(R.id.cutButton)
         pasteButton = findViewById(R.id.pasteButton)
+
+        // Load the syntax rules from the assets folder.
+        loadSyntaxRules()
 
         // Match line numbers with editor
         lineNumbers.setLineSpacing(editor.lineSpacingExtra, editor.lineSpacingMultiplier)
@@ -100,18 +131,16 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
 
-                // Check for significant text changes to update undo/redo stacks
                 if (previousText != s.toString()) {
                     undoStack.push(previousText)
                     redoStack.clear()
                 }
 
-                // Update line numbers and word/char count
                 updateLineNumbers()
                 updateWordCharCount()
                 
-                // Apply syntax highlighting
-                s?.let { applyKotlinHighlighting(it) }
+                // Use the active rule to apply highlighting.
+                s?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
             }
         })
 
@@ -130,7 +159,7 @@ class MainActivity : AppCompatActivity() {
                     "Open" -> openFileLauncher.launch(arrayOf("*/*"))
                     "Save" -> {
                         if (currentFileUri != null) saveToUri(currentFileUri!!)
-                        else saveFileLauncher.launch("untitled.kt")
+                        else saveFileLauncher.launch("untitled.txt")
                     }
                     "Find/Replace" -> showFindReplaceDialog()
                 }
@@ -148,47 +177,51 @@ class MainActivity : AppCompatActivity() {
         cutButton.setOnClickListener { cut() }
         pasteButton.setOnClickListener { paste() }
 
-        fileName.text = "untitled.kt"
+        fileName.text = "untitled.txt"
     }
 
     /**
-     * Applies syntax highlighting for Kotlin code to the given Editable text.
-     * It uses regular expressions to identify keywords, comments, and strings
-     * and applies color spans.
+     * Loads syntax rules from a JSON file in the assets folder.
+     */
+    private fun loadSyntaxRules() {
+        try {
+            val inputStream = assets.open("syntax_rules.json")
+            val jsonString = inputStream.bufferedReader().use { it.readText() }
+            allRules = Gson().fromJson(jsonString, SyntaxRules::class.java)
+
+            // Set Kotlin as the default active language
+            activeRule = allRules?.rules?.find { it.name == "kotlin" }
+            if (activeRule == null) {
+                Toast.makeText(this, "Kotlin rules not found in JSON!", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Error loading syntax rules: ${e.message}", Toast.LENGTH_LONG).show()
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * Applies syntax highlighting to a given Editable based on the provided rule.
+     * This function is now generic and works for any language with rules in the JSON.
      *
      * @param editable The Editable object from the EditText.
+     * @param rules The LanguageRule object containing the highlighting definitions.
      */
-    private fun applyKotlinHighlighting(editable: Editable) {
-        // A flag to prevent the TextWatcher from firing when we update the spans.
+    private fun applySyntaxHighlighting(editable: Editable, rules: LanguageRule) {
         isUpdatingText = true
 
-        // 1. Define the colors from your resources
-        val keywordColor = ContextCompat.getColor(this, R.color.kotlin_keyword)
-        val commentColor = ContextCompat.getColor(this, R.color.kotlin_comment)
-        val stringColor = ContextCompat.getColor(this, R.color.kotlin_string)
-
-        // 2. Clear all existing spans to avoid layering and conflicts
         val spans = editable.getSpans(0, editable.length, ForegroundColorSpan::class.java)
         for (span in spans) {
             editable.removeSpan(span)
         }
 
-        // 3. Define the patterns for Kotlin syntax elements
-        // This is a simple list of common keywords. You can expand it.
-        val keywords = listOf(
-            "fun", "val", "var", "class", "object", "interface", "if", "else",
-            "when", "for", "while", "do", "return", "break", "continue", "is", "as",
-            "in", "package", "import"
-        )
-        val keywordPattern = Pattern.compile("\\b(${keywords.joinToString("|")})\\b")
+        // Define the colors from the JSON hex strings
+        val keywordColor = Color.parseColor(rules.keywordColor)
+        val commentColor = Color.parseColor(rules.commentColor)
+        val stringColor = Color.parseColor(rules.stringColor)
 
-        // Regex for comments (single-line //)
-        val commentPattern = Pattern.compile("//.*")
-
-        // Regex for strings (double quotes)
-        val stringPattern = Pattern.compile("\"[^\"]*\"")
-
-        // 4. Find and highlight keywords
+        // 1. Find and highlight keywords
+        val keywordPattern = Pattern.compile("\\b(${rules.keywords.joinToString("|")})\\b")
         val keywordMatcher = keywordPattern.matcher(editable)
         while (keywordMatcher.find()) {
             editable.setSpan(
@@ -199,7 +232,8 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        // 5. Find and highlight strings
+        // 2. Find and highlight strings
+        val stringPattern = Pattern.compile("(${rules.stringDelimiter})[^\n]*?(\\1)")
         val stringMatcher = stringPattern.matcher(editable)
         while (stringMatcher.find()) {
             editable.setSpan(
@@ -210,7 +244,8 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        // 6. Find and highlight comments
+        // 3. Find and highlight comments
+        val commentPattern = Pattern.compile("^\\s*(${rules.commentSymbols.joinToString("|")}).*")
         val commentMatcher = commentPattern.matcher(editable)
         while (commentMatcher.find()) {
             editable.setSpan(
@@ -220,68 +255,20 @@ class MainActivity : AppCompatActivity() {
                 Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
             )
         }
-        
-        // Reset the flag.
+
         isUpdatingText = false
     }
 
-    // Undo / Redo
-    private fun undo() {
-        if (undoStack.isNotEmpty()) {
-            redoStack.push(editor.text.toString())
-            editor.setText(undoStack.pop())
-            editor.setSelection(editor.text.length)
-        }
-    }
-
-    private fun redo() {
-        if (redoStack.isNotEmpty()) {
-            undoStack.push(editor.text.toString())
-            editor.setText(redoStack.pop())
-            editor.setSelection(editor.text.length)
-        }
-    }
-
-    // Copy / Cut / Paste
-    private fun copy() {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val start = editor.selectionStart.coerceAtLeast(0)
-        val end = editor.selectionEnd.coerceAtLeast(0)
-        if (start != end) {
-            val textToCopy = editor.text.substring(start, end)
-            clipboard.setPrimaryClip(ClipData.newPlainText("text", textToCopy))
-        }
-    }
-
-    private fun cut() {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val start = editor.selectionStart.coerceAtLeast(0)
-        val end = editor.selectionEnd.coerceAtLeast(0)
-        if (start != end) {
-            val textToCut = editor.text.substring(start, end)
-            clipboard.setPrimaryClip(ClipData.newPlainText("text", textToCut))
-            editor.text.replace(start, end, "")
-        }
-    }
-
-    private fun paste() {
-        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = clipboard.primaryClip
-        clip?.getItemAt(0)?.text?.let { textToPaste ->
-            val start = editor.selectionStart.coerceAtLeast(0)
-            val end = editor.selectionEnd.coerceAtLeast(0)
-            editor.text.replace(start, end, textToPaste)
-            editor.setSelection(start + textToPaste.length)
-        }
-    }
-
-    // File operations
+    // -- File Operations --
     private fun newFile() {
         editor.setText("")
-        fileName.text = "untitled.kt"
+        fileName.text = "untitled.txt"
         currentFileUri = null
         undoStack.clear()
         redoStack.clear()
+        // Default to Kotlin highlighting for new files
+        activeRule = allRules?.rules?.find { it.name == "kotlin" }
+        editor.text?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
     }
 
     private fun openFile(uri: Uri) {
@@ -291,7 +278,23 @@ class MainActivity : AppCompatActivity() {
             editor.setSelection(editor.text.length)
         }
         currentFileUri = uri
-        fileName.text = getFileName(uri)
+        
+        // Get the file name to determine the file extension
+        val name = getFileName(uri)
+        fileName.text = name
+
+        // Extract the file extension
+        val fileExtension = name.substringAfterLast('.', "").lowercase(Locale.getDefault())
+
+        // Find the matching rule based on the file extension
+        val matchingRule = allRules?.rules?.find { it.fileExtensions.contains(fileExtension) }
+
+        // Set the active rule; default to Kotlin if no match is found
+        activeRule = matchingRule ?: allRules?.rules?.find { it.name == "kotlin" }
+        
+        // Re-apply the highlighting with the new rule
+        editor.text?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
+        
         undoStack.clear()
         redoStack.clear()
     }
@@ -305,7 +308,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun getFileName(uri: Uri): String {
-        var name = "untitled.kt"
+        var name = "untitled.txt"
         contentResolver.query(uri, null, null, null, null)?.use { cursor ->
             if (cursor.moveToFirst()) {
                 val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
@@ -315,7 +318,7 @@ class MainActivity : AppCompatActivity() {
         return name
     }
 
-    // Find & Replace
+    // -- Find & Replace --
     private fun showFindReplaceDialog() {
         val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val findEdit = EditText(this).apply { hint = "Find" }
@@ -372,5 +375,55 @@ class MainActivity : AppCompatActivity() {
         val pattern = if (wholeWord) "\\b${Regex.escape(find)}\\b" else Regex.escape(find)
         val regex = if (caseSensitive) Regex(pattern) else Regex(pattern, RegexOption.IGNORE_CASE)
         editor.setText(regex.replace(editor.text.toString(), replace))
+    }
+
+    // -- Undo / Redo --
+    private fun undo() {
+        if (undoStack.isNotEmpty()) {
+            redoStack.push(editor.text.toString())
+            editor.setText(undoStack.pop())
+            editor.setSelection(editor.text.length)
+        }
+    }
+
+    private fun redo() {
+        if (redoStack.isNotEmpty()) {
+            undoStack.push(editor.text.toString())
+            editor.setText(redoStack.pop())
+            editor.setSelection(editor.text.length)
+        }
+    }
+
+    // -- Copy / Cut / Paste --
+    private fun copy() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val start = editor.selectionStart.coerceAtLeast(0)
+        val end = editor.selectionEnd.coerceAtLeast(0)
+        if (start != end) {
+            val textToCopy = editor.text.substring(start, end)
+            clipboard.setPrimaryClip(ClipData.newPlainText("text", textToCopy))
+        }
+    }
+
+    private fun cut() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val start = editor.selectionStart.coerceAtLeast(0)
+        val end = editor.selectionEnd.coerceAtLeast(0)
+        if (start != end) {
+            val textToCut = editor.text.substring(start, end)
+            clipboard.setPrimaryClip(ClipData.newPlainText("text", textToCut))
+            editor.text.replace(start, end, "")
+        }
+    }
+
+    private fun paste() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = clipboard.primaryClip
+        clip?.getItemAt(0)?.text?.let { textToPaste ->
+            val start = editor.selectionStart.coerceAtLeast(0)
+            val end = editor.selectionEnd.coerceAtLeast(0)
+            editor.text.replace(start, end, textToPaste)
+            editor.setSelection(start + textToPaste.length)
+        }
     }
 }
