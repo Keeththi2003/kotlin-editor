@@ -46,25 +46,34 @@
 
             <!-- Line numbers -->
             <TextView
-                android:id="@+id/lineNumbers"
-                android:layout_width="40dp"
-                android:layout_height="match_parent"
-                android:gravity="top|end"
-                android:paddingEnd="4dp"
-                android:textColor="#888888"
-                android:background="#EEEEEE" />
+    android:id="@+id/lineNumbers"
+    android:layout_width="20dp"
+    android:layout_height="match_parent"
+    android:gravity="top|end"
+    android:paddingEnd="4dp"
+    android:textColor="#888888"
+    android:background="#EEEEEE"
+    android:textSize="16sp"
+    android:lineSpacingExtra="0dp"
+    android:includeFontPadding="false"
+    android:fontFamily="monospace"/>
 
             <!-- Editor -->
             <EditText
-                android:id="@+id/editor"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout_toEndOf="@id/lineNumbers"
-                android:hint="Start typing..."
-                android:gravity="top|start"
-                android:inputType="textMultiLine"
-                android:scrollbars="vertical"
-                android:paddingStart="8dp" />
+    android:id="@+id/editor"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:layout_toEndOf="@id/lineNumbers"
+    android:hint="Start typing..."
+    android:gravity="top|start"
+    android:inputType="textMultiLine"
+    android:scrollbars="vertical"
+    android:textSize="16sp"
+    android:lineSpacingExtra="0dp"
+    android:includeFontPadding="false"
+    android:fontFamily="monospace"
+    android:paddingStart="8dp"/>
+
         </RelativeLayout>
     </HorizontalScrollView>
 
