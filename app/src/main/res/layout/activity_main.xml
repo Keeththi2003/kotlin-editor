@@ -1,0 +1,79 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:orientation="vertical"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- Top toolbar with hamburger menu and file name -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:background="#2196F3">
+
+        <!-- Hamburger menu -->
+        <ImageButton
+            android:id="@+id/menuButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:src="@android:drawable/ic_menu_more"
+            android:background="@android:color/transparent"
+            app:tint="#FFFFFF" />
+
+        <!-- File name -->
+        <TextView
+            android:id="@+id/fileName"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="untitled.txt"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:layout_gravity="center_vertical"
+            android:layout_marginStart="16dp" />
+    </LinearLayout>
+
+    <!-- Editor area with line numbers -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <RelativeLayout
+            android:layout_width="wrap_content"
+            android:layout_height="match_parent">
+
+            <!-- Line numbers -->
+            <TextView
+                android:id="@+id/lineNumbers"
+                android:layout_width="40dp"
+                android:layout_height="match_parent"
+                android:gravity="top|end"
+                android:paddingEnd="4dp"
+                android:textColor="#888888"
+                android:background="#EEEEEE" />
+
+            <!-- Editor -->
+            <EditText
+                android:id="@+id/editor"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_toEndOf="@id/lineNumbers"
+                android:hint="Start typing..."
+                android:gravity="top|start"
+                android:inputType="textMultiLine"
+                android:scrollbars="vertical"
+                android:paddingStart="8dp" />
+        </RelativeLayout>
+    </HorizontalScrollView>
+
+    <!-- Status bar -->
+    <TextView
+        android:id="@+id/status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Words: 0 | Chars: 0"
+        android:padding="8dp"
+        android:background="#E0E0E0" />
+</LinearLayout>

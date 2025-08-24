@@ -4,3 +4,15 @@
  * This is a general purpose Gradle build.
  * Learn more about Gradle by exploring our Samples at https://docs.gradle.org/9.0.0/samples
  */
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+plugins {
+    // Android Gradle Plugin
+    id("com.android.application") version "8.4.0" apply false
+    // Kotlin Android plugin
+    kotlin("android") version "1.9.23" apply false
+}
+
+task<Delete>("clean") {
+    delete(rootProject.buildDir)
+}
