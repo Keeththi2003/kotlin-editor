@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var copyButton: ImageButton
     private lateinit var cutButton: ImageButton
     private lateinit var pasteButton: ImageButton
+    private lateinit var compileButton: ImageButton
 
     private val undoStack = ArrayDeque<String>()
     private val redoStack = ArrayDeque<String>()
@@ -90,6 +91,7 @@ class MainActivity : AppCompatActivity() {
         copyButton = findViewById(R.id.copyButton)
         cutButton = findViewById(R.id.cutButton)
         pasteButton = findViewById(R.id.pasteButton)
+        compileButton = findViewById(R.id.compileButton)
 
         // Load the syntax rules from the assets folder.
         loadSyntaxRules()
@@ -171,6 +173,7 @@ class MainActivity : AppCompatActivity() {
         // Top toolbar
         undoButton.setOnClickListener { undo() }
         redoButton.setOnClickListener { redo() }
+        compileButton.setOnClickListener { compileCode() }
 
         // Bottom toolbar
         copyButton.setOnClickListener { copy() }
@@ -426,4 +429,33 @@ class MainActivity : AppCompatActivity() {
             editor.setSelection(start + textToPaste.length)
         }
     }
+
+    private fun compileCode() {
+        val code = editor.text.toString()
+    
+        if (code.isBlank()) {
+            showCompileResult("No code to compile!", false)
+            return
+        }
+    
+        // Dummy compile: check if it contains 'fun main'
+        if ("fun main" in code) {
+            showCompileResult("Compilation successful ✅", true)
+        } else {
+            showCompileResult("Compilation failed: Missing entry point (fun main).", false)
+        }
+    }
+    private fun showCompileResult(message: String, success: Boolean) {
+        // Update status TextView
+        status.text = message
+        status.setTextColor(if (success) Color.GREEN else Color.RED)
+    
+        // Optional: show alert dialog
+        AlertDialog.Builder(this)
+            .setTitle(if (success) "Success" else "Error")
+            .setMessage(message)
+            .setPositiveButton("OK", null)
+            .show()
+    }    
+
 }

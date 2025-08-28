@@ -43,7 +43,7 @@
             app:srcCompat="@drawable/ic_undo_24"
             app:tint="#FFFFFF"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Undo"/>
+            android:contentDescription="Undo" />
 
         <!-- Redo button -->
         <ImageButton
@@ -53,7 +53,16 @@
             app:srcCompat="@drawable/ic_redo_24"
             app:tint="#FFFFFF"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Redo"/>
+            android:contentDescription="Redo" />
+
+        <ImageButton
+            android:id="@+id/compileButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            app:srcCompat="@drawable/ic_play_arrow_24"
+            app:tint="#FFFFFF"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Compile" />
     </LinearLayout>
 
     <!-- Editor area with line numbers -->
@@ -79,7 +88,7 @@
                 android:textSize="16sp"
                 android:lineSpacingExtra="0dp"
                 android:includeFontPadding="false"
-                android:fontFamily="monospace"/>
+                android:fontFamily="monospace" />
 
             <!-- Editor -->
             <EditText
@@ -95,7 +104,7 @@
                 android:lineSpacingExtra="0dp"
                 android:includeFontPadding="false"
                 android:fontFamily="monospace"
-                android:paddingStart="8dp"/>
+                android:paddingStart="8dp" />
         </RelativeLayout>
     </HorizontalScrollView>
 
@@ -123,7 +132,7 @@
             android:layout_height="40dp"
             app:srcCompat="@drawable/ic_content_copy_24"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Copy"/>
+            android:contentDescription="Copy" />
 
         <ImageButton
             android:id="@+id/cutButton"
@@ -132,7 +141,7 @@
             app:srcCompat="@drawable/ic_content_cut_24"
             android:layout_marginStart="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Cut"/>
+            android:contentDescription="Cut" />
 
         <ImageButton
             android:id="@+id/pasteButton"
@@ -141,6 +150,6 @@
             app:srcCompat="@drawable/ic_content_paste_24"
             android:layout_marginStart="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Paste"/>
+            android:contentDescription="Paste" />
     </LinearLayout>
 </LinearLayout>
