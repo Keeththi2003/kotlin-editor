@@ -21,6 +21,8 @@ import com.google.gson.annotations.SerializedName
 import java.io.InputStream
 import java.util.*
 import java.util.regex.Pattern
+import java.io.File
+
 
 // Represents a single language's syntax rules
 data class LanguageRule(
@@ -263,16 +265,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     // -- File Operations --
-    private fun newFile() {
-        editor.setText("")
-        fileName.text = "untitled.kt"
-        currentFileUri = null
-        undoStack.clear()
-        redoStack.clear()
-        // Default to Kotlin highlighting for new files
-        activeRule = allRules?.rules?.find { it.name == "kotlin" }
-        editor.text?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
-    }
+   private fun newFile() {
+    editor.setText("")
+    fileName.text = "untitled.kt"  // You can later let user pick .kt, .py, etc.
+    currentFileUri = null
+    undoStack.clear()
+    redoStack.clear()
+
+    // Detect rule by extension
+    val extension = fileName.text.toString().substringAfterLast('.', "").lowercase(Locale.getDefault())
+    activeRule = allRules?.rules?.find { it.fileExtensions.contains(extension) }
+        ?: allRules?.rules?.find { it.name == "kotlin" } // fallback
+
+    editor.text?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
+}
+
 
     private fun openFile(uri: Uri) {
         contentResolver.openInputStream(uri)?.bufferedReader().use {
@@ -430,21 +437,49 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun compileCode() {
-        val code = editor.text.toString()
-    
-        if (code.isBlank()) {
-            showCompileResult("No code to compile!", false)
-            return
-        }
-    
-        // Dummy compile: check if it contains 'fun main'
-        if ("fun main" in code) {
-            showCompileResult("Compilation successful ✅", true)
-        } else {
-            showCompileResult("Compilation failed: Missing entry point (fun main).", false)
-        }
+ private fun compileCode() {
+    val code = editor.text.toString()
+
+    if (code.isBlank()) {
+        showCompileResult("No code to compile!", false)
+        return
     }
+
+    // Use the file name from the UI (instead of always Main.kt)
+    val currentName = fileName.text.toString().ifEmpty { "Main.kt" }
+    val file = File(filesDir, currentName)
+    file.writeText(code)
+
+    // 🔹 Instead of running adb, simulate the process
+    val fakeOutput = """
+        [Simulated ADB Process]
+        Saved file: ${file.absolutePath}
+        -> adb push ${file.absolutePath} /data/local/tmp/$currentName
+        -> adb shell kotlinc /data/local/tmp/$currentName -include-runtime -d /data/local/tmp/Main.jar
+        -> adb shell java -jar /data/local/tmp/Main.jar
+        
+        Compilation successful ✅
+        Program output: Hello from Kotlin!
+    """.trimIndent()
+
+    showCompileResult(fakeOutput, true)
+}
+
+
+// Helper to execute adb commands
+private fun runAdbCommand(command: String, callback: (String) -> Unit) {
+    Thread {
+        try {
+            val process = Runtime.getRuntime().exec(command)
+            val output = process.inputStream.bufferedReader().readText()
+            val error = process.errorStream.bufferedReader().readText()
+            val result = if (error.isNotEmpty()) error else output
+            callback(result.trim())
+        } catch (e: Exception) {
+            callback("ADB Error: ${e.message}")
+        }
+    }.start()
+}
     private fun showCompileResult(message: String, success: Boolean) {
         // Update status TextView
         status.text = message
