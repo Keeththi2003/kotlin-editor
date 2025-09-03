@@ -1,8 +1,8 @@
 package com.example.texteditor
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
+// =============== Imports ===============
+import android.content.*
+import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
@@ -10,26 +10,21 @@ import android.text.Editable
 import android.text.Spannable
 import android.text.TextWatcher
 import android.text.style.ForegroundColorSpan
+import android.view.MenuItem
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
-import android.graphics.Color
-import com.google.gson.Gson
-import com.google.gson.annotations.SerializedName
-import java.io.InputStream
-import java.util.*
-import java.util.regex.Pattern
-import java.io.File
-import android.view.MenuItem
+import androidx.core.view.GravityCompat
 import androidx.drawerlayout.widget.DrawerLayout
 import com.google.android.material.navigation.NavigationView
-import androidx.core.view.GravityCompat
-import com.google.android.material.navigation.NavigationView.OnNavigationItemSelectedListener
+import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
+import java.io.File
+import java.util.*
+import java.util.regex.Pattern
 
-
-// Represents a single language's syntax rules
+// =============== Data Models ===============
 data class LanguageRule(
     @SerializedName("name") val name: String,
     @SerializedName("fileExtensions") val fileExtensions: List<String>,
@@ -41,18 +36,19 @@ data class LanguageRule(
     val stringDelimiter: String
 )
 
-// Represents the top-level structure of the JSON file
 data class SyntaxRules(
     @SerializedName("languages") val rules: List<LanguageRule>
 )
 
+// =============== Main Activity ===============
 class MainActivity : AppCompatActivity() {
 
+    // ---------- UI Elements ----------
     private lateinit var editor: EditText
     private lateinit var status: TextView
     private lateinit var lineNumbers: TextView
-    private lateinit var menuButton: ImageButton
     private lateinit var fileName: TextView
+    private lateinit var menuButton: ImageButton
     private lateinit var undoButton: ImageButton
     private lateinit var redoButton: ImageButton
     private lateinit var copyButton: ImageButton
@@ -60,34 +56,44 @@ class MainActivity : AppCompatActivity() {
     private lateinit var pasteButton: ImageButton
     private lateinit var compileButton: ImageButton
 
+    // ---------- State ----------
     private val undoStack = ArrayDeque<String>()
     private val redoStack = ArrayDeque<String>()
     private var currentFileUri: Uri? = null
-
-    // A flag to prevent the TextWatcher from firing when we update the spans.
     private var isUpdatingText = false
-
-    // Store the loaded language rules
-    private var allRules: SyntaxRules? = null
-
-    // The currently active language rule
-    private var activeRule: LanguageRule? = null
-
-    // Last found index for Find & Replace
     private var lastFindIndex = 0
 
-    private val openFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+    // ---------- Syntax Highlighting ----------
+    private var allRules: SyntaxRules? = null
+    private var activeRule: LanguageRule? = null
+
+    // ---------- Activity Results ----------
+    private val openFileLauncher = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { openFile(it) }
     }
-    private val saveFileLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument()) { uri: Uri? ->
+
+    private val saveFileLauncher = registerForActivityResult(ActivityResultContracts.CreateDocument()) { uri ->
         uri?.let { saveToUri(it) }
     }
 
+    // ========================================
+    //  onCreate
+    // ========================================
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // Initialize views
+        initViews()
+        loadSyntaxRules()
+        setupEditor()
+        setupDrawerMenu()
+        setupToolbars()
+
+        fileName.text = "untitled.kt"
+    }
+
+    // =============== Initialization ===============
+    private fun initViews() {
         editor = findViewById(R.id.editor)
         status = findViewById(R.id.status)
         lineNumbers = findViewById(R.id.lineNumbers)
@@ -99,259 +105,156 @@ class MainActivity : AppCompatActivity() {
         cutButton = findViewById(R.id.cutButton)
         pasteButton = findViewById(R.id.pasteButton)
         compileButton = findViewById(R.id.compileButton)
+    }
 
-        // Load the syntax rules from the assets folder.
-        loadSyntaxRules()
-
-        // Match line numbers with editor
+    private fun setupEditor() {
+        // Sync line numbers
         lineNumbers.setLineSpacing(editor.lineSpacingExtra, editor.lineSpacingMultiplier)
         lineNumbers.textSize = editor.textSize / resources.displayMetrics.scaledDensity
         lineNumbers.typeface = editor.typeface
 
-        // Update line numbers & word/char count
-        fun updateLineNumbers() {
-            val lines = editor.lineCount
-            val builder = StringBuilder()
-            for (i in 1..lines) builder.append(i).append("\n")
-            lineNumbers.text = builder.toString()
-        }
-
-        fun updateWordCharCount() {
-            val text = editor.text.toString()
-            val words = text.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }.size
-            val chars = text.length
-            status.text = "Words: $words | Chars: $chars"
-        }
-
-        // TextWatcher for undo/redo & updates
+        // TextWatcher for Undo/Redo & Highlighting
         editor.addTextChangedListener(object : TextWatcher {
             private var previousText = ""
-
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
-                if (!isUpdatingText) {
-                    previousText = s.toString()
-                }
+                if (!isUpdatingText) previousText = s.toString()
             }
-
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-
             override fun afterTextChanged(s: Editable?) {
-                if (isUpdatingText) {
-                    return
-                }
-
+                if (isUpdatingText) return
                 if (previousText != s.toString()) {
                     undoStack.push(previousText)
                     redoStack.clear()
                 }
-
                 updateLineNumbers()
                 updateWordCharCount()
-                
-                // Use the active rule to apply highlighting.
                 s?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
             }
         })
 
         editor.viewTreeObserver.addOnGlobalLayoutListener { updateLineNumbers() }
-
-        // // Hamburger menu
-        // menuButton.setOnClickListener {
-        //     val popup = PopupMenu(this, it)
-        //     popup.menu.add("New File")
-        //     popup.menu.add("Open")
-        //     popup.menu.add("Save")
-        //     popup.menu.add("Find/Replace")
-        //     popup.setOnMenuItemClickListener { item ->
-        //         when (item.title) {
-        //             "New File" -> newFile()
-        //             "Open" -> openFileLauncher.launch(arrayOf("*/*"))
-        //             "Save" -> {
-        //                 if (currentFileUri != null) saveToUri(currentFileUri!!)
-        //                 else saveFileLauncher.launch("untitled.kt")
-        //             }
-        //             "Find/Replace" -> showFindReplaceDialog()
-        //         }
-        //         true
-        //     }
-        //     popup.show()
-        // }
-
-
-        val drawerLayout = findViewById<DrawerLayout>(R.id.drawerLayout)
-val navigationView = findViewById<NavigationView>(R.id.navigationView)
-
-menuButton.setOnClickListener {
-    drawerLayout.openDrawer(navigationView)
-}
-navigationView.setNavigationItemSelectedListener { item: MenuItem ->
-    when (item.itemId) {
-        R.id.nav_new -> newFile()
-        R.id.nav_open -> openFileLauncher.launch(arrayOf("*/*"))
-        R.id.nav_save -> {
-            if (currentFileUri != null) saveToUri(currentFileUri!!)
-            else saveFileLauncher.launch("untitled.kt")
-        }
-        R.id.nav_find -> showFindReplaceDialog()
     }
-    drawerLayout.closeDrawers()
-    true
-}
 
+    private fun setupDrawerMenu() {
+        val drawerLayout = findViewById<DrawerLayout>(R.id.drawerLayout)
+        val navigationView = findViewById<NavigationView>(R.id.navigationView)
 
-        // Top toolbar
+        menuButton.setOnClickListener { drawerLayout.openDrawer(GravityCompat.START) }
+
+        navigationView.setNavigationItemSelectedListener { item: MenuItem ->
+            when (item.itemId) {
+                R.id.nav_new -> newFile()
+                R.id.nav_open -> openFileLauncher.launch(arrayOf("*/*"))
+                R.id.nav_save -> saveCurrentFile()
+                R.id.nav_find -> showFindReplaceDialog()
+            }
+            drawerLayout.closeDrawers()
+            true
+        }
+    }
+
+    private fun setupToolbars() {
         undoButton.setOnClickListener { undo() }
         redoButton.setOnClickListener { redo() }
         compileButton.setOnClickListener { compileCode() }
-
-        // Bottom toolbar
         copyButton.setOnClickListener { copy() }
         cutButton.setOnClickListener { cut() }
         pasteButton.setOnClickListener { paste() }
-
-        fileName.text = "untitled.kt"
     }
 
-    /**
-     * Loads syntax rules from a JSON file in the assets folder.
-     */
+    // =============== Helpers: Editor Status ===============
+    private fun updateLineNumbers() {
+        val lines = editor.lineCount
+        val builder = StringBuilder()
+        for (i in 1..lines) builder.append(i).append("\n")
+        lineNumbers.text = builder.toString()
+    }
+
+    private fun updateWordCharCount() {
+        val text = editor.text.toString()
+        val words = text.trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }.size
+        val chars = text.length
+        status.text = "Words: $words | Chars: $chars"
+    }
+
+    // =============== Syntax Highlighting ===============
     private fun loadSyntaxRules() {
         try {
-            val inputStream = assets.open("syntax_rules.json")
-            val jsonString = inputStream.bufferedReader().use { it.readText() }
+            val jsonString = assets.open("syntax_rules.json").bufferedReader().use { it.readText() }
             allRules = Gson().fromJson(jsonString, SyntaxRules::class.java)
-
-            // Set Kotlin as the default active language
             activeRule = allRules?.rules?.find { it.name == "kotlin" }
-            if (activeRule == null) {
-                Toast.makeText(this, "Kotlin rules not found in JSON!", Toast.LENGTH_LONG).show()
-            }
         } catch (e: Exception) {
             Toast.makeText(this, "Error loading syntax rules: ${e.message}", Toast.LENGTH_LONG).show()
-            e.printStackTrace()
         }
     }
 
-    /**
-     * Applies syntax highlighting to a given Editable based on the provided rule.
-     * This function is now generic and works for any language with rules in the JSON.
-     *
-     * @param editable The Editable object from the EditText.
-     * @param rules The LanguageRule object containing the highlighting definitions.
-     */
     private fun applySyntaxHighlighting(editable: Editable, rules: LanguageRule) {
         isUpdatingText = true
+        editable.getSpans(0, editable.length, ForegroundColorSpan::class.java).forEach { editable.removeSpan(it) }
 
-        val spans = editable.getSpans(0, editable.length, ForegroundColorSpan::class.java)
-        for (span in spans) {
-            editable.removeSpan(span)
-        }
-
-        // Define the colors from the JSON hex strings
         val keywordColor = Color.parseColor(rules.keywordColor)
         val commentColor = Color.parseColor(rules.commentColor)
         val stringColor = Color.parseColor(rules.stringColor)
 
-        // 1. Find and highlight keywords
+        // Keywords
         val keywordPattern = Pattern.compile("\\b(${rules.keywords.joinToString("|")})\\b")
         val keywordMatcher = keywordPattern.matcher(editable)
         while (keywordMatcher.find()) {
-            editable.setSpan(
-                ForegroundColorSpan(keywordColor),
-                keywordMatcher.start(),
-                keywordMatcher.end(),
-                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
+            editable.setSpan(ForegroundColorSpan(keywordColor), keywordMatcher.start(), keywordMatcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
 
-        // 2. Find and highlight strings
+        // Strings
         val stringPattern = Pattern.compile("(${rules.stringDelimiter})[^\n]*?(\\1)")
         val stringMatcher = stringPattern.matcher(editable)
         while (stringMatcher.find()) {
-            editable.setSpan(
-                ForegroundColorSpan(stringColor),
-                stringMatcher.start(),
-                stringMatcher.end(),
-                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
+            editable.setSpan(ForegroundColorSpan(stringColor), stringMatcher.start(), stringMatcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
 
-        // 3. Find and highlight comments
+        // Comments
         val commentPattern = Pattern.compile("^\\s*(${rules.commentSymbols.joinToString("|")}).*")
         val commentMatcher = commentPattern.matcher(editable)
         while (commentMatcher.find()) {
-            editable.setSpan(
-                ForegroundColorSpan(commentColor),
-                commentMatcher.start(),
-                commentMatcher.end(),
-                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-            )
+            editable.setSpan(ForegroundColorSpan(commentColor), commentMatcher.start(), commentMatcher.end(), Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
         }
 
         isUpdatingText = false
     }
 
-    // -- File Operations --
-   private fun newFile() {
-    editor.setText("")
-    fileName.text = "untitled.kt"  // You can later let user pick .kt, .py, etc.
-    currentFileUri = null
-    undoStack.clear()
-    redoStack.clear()
-
-    // Detect rule by extension
-    val extension = fileName.text.toString().substringAfterLast('.', "").lowercase(Locale.getDefault())
-    activeRule = allRules?.rules?.find { it.fileExtensions.contains(extension) }
-        ?: allRules?.rules?.find { it.name == "kotlin" } // fallback
-
-    editor.text?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
-}
-
+    // =============== File Operations ===============
+    private fun newFile() {
+        editor.setText("")
+        fileName.text = "untitled.kt"
+        currentFileUri = null
+        undoStack.clear()
+        redoStack.clear()
+        setActiveRuleFromExtension("kt")
+    }
 
     private fun openFile(uri: Uri) {
-        contentResolver.openInputStream(uri)?.bufferedReader().use {
-            val text = it?.readText() ?: ""
-            editor.setText(text)
-            editor.setSelection(editor.text.length)
-        }
+        val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: ""
+        editor.setText(text)
+        editor.setSelection(editor.text.length)
         currentFileUri = uri
-        
-        // Get the file name to determine the file extension
+
         val name = getFileName(uri)
         fileName.text = name
-
-        // Extract the file extension
-        val fileExtension = name.substringAfterLast('.', "").lowercase(Locale.getDefault())
-
-        // Find the matching rule based on the file extension
-        val matchingRule = allRules?.rules?.find { it.fileExtensions.contains(fileExtension) }
-
-        // Set the active rule; default to Kotlin if no match is found
-        activeRule = matchingRule ?: allRules?.rules?.find { it.name == "kotlin" }
-        
-        // Re-apply the highlighting with the new rule
-        editor.text?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
-        
+        setActiveRuleFromExtension(name.substringAfterLast('.', ""))
         undoStack.clear()
         redoStack.clear()
     }
-private fun saveToUri(uri: Uri) {
-    contentResolver.openOutputStream(uri)?.bufferedWriter().use {
-        it?.write(editor.text.toString())
+
+    private fun saveToUri(uri: Uri) {
+        contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(editor.text.toString()) }
+        currentFileUri = uri
+        val name = getFileName(uri)
+        fileName.text = name
+        setActiveRuleFromExtension(name.substringAfterLast('.', ""))
     }
-    currentFileUri = uri
-    val name = getFileName(uri)
-    fileName.text = name
 
-    // 🔹 Detect extension and set correct rule
-    val extension = name.substringAfterLast('.', "").lowercase(Locale.getDefault())
-    activeRule = allRules?.rules?.find { it.fileExtensions.contains(extension) }
-        ?: allRules?.rules?.find { it.name == "kotlin" } // fallback
-
-    // Re-apply syntax highlighting
-    editor.text?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
-}
-
+    private fun saveCurrentFile() {
+        if (currentFileUri != null) saveToUri(currentFileUri!!)
+        else saveFileLauncher.launch("untitled.kt")
+    }
 
     private fun getFileName(uri: Uri): String {
         var name = "untitled.kt"
@@ -364,30 +267,28 @@ private fun saveToUri(uri: Uri) {
         return name
     }
 
-    // -- Find & Replace --
+    private fun setActiveRuleFromExtension(extension: String) {
+        val ext = extension.lowercase(Locale.getDefault())
+        activeRule = allRules?.rules?.find { it.fileExtensions.contains(ext) } ?: allRules?.rules?.find { it.name == "kotlin" }
+        editor.text?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
+    }
+
+    // =============== Find & Replace ===============
     private fun showFindReplaceDialog() {
         val layout = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val findEdit = EditText(this).apply { hint = "Find" }
         val replaceEdit = EditText(this).apply { hint = "Replace" }
         val caseCheck = CheckBox(this).apply { text = "Case Sensitive" }
         val wordCheck = CheckBox(this).apply { text = "Whole Word" }
-        layout.addView(findEdit)
-        layout.addView(replaceEdit)
-        layout.addView(caseCheck)
-        layout.addView(wordCheck)
+
+        layout.addView(findEdit); layout.addView(replaceEdit); layout.addView(caseCheck); layout.addView(wordCheck)
 
         AlertDialog.Builder(this)
             .setTitle("Find & Replace")
             .setView(layout)
-            .setPositiveButton("Find Next") { _, _ ->
-                findNext(findEdit.text.toString(), caseCheck.isChecked, wordCheck.isChecked)
-            }
-            .setNeutralButton("Replace") { _, _ ->
-                replaceCurrent(findEdit.text.toString(), replaceEdit.text.toString(), caseCheck.isChecked, wordCheck.isChecked)
-            }
-            .setNegativeButton("Replace All") { _, _ ->
-                replaceAll(findEdit.text.toString(), replaceEdit.text.toString(), caseCheck.isChecked, wordCheck.isChecked)
-            }
+            .setPositiveButton("Find Next") { _, _ -> findNext(findEdit.text.toString(), caseCheck.isChecked, wordCheck.isChecked) }
+            .setNeutralButton("Replace") { _, _ -> replaceCurrent(findEdit.text.toString(), replaceEdit.text.toString(), caseCheck.isChecked, wordCheck.isChecked) }
+            .setNegativeButton("Replace All") { _, _ -> replaceAll(findEdit.text.toString(), replaceEdit.text.toString(), caseCheck.isChecked, wordCheck.isChecked) }
             .show()
     }
 
@@ -409,9 +310,7 @@ private fun saveToUri(uri: Uri) {
             val selectedText = editor.text.substring(selStart, selEnd)
             val pattern = if (wholeWord) "\\b${Regex.escape(find)}\\b" else Regex.escape(find)
             val regex = if (caseSensitive) Regex(pattern) else Regex(pattern, RegexOption.IGNORE_CASE)
-            if (regex.matches(selectedText)) {
-                editor.text.replace(selStart, selEnd, replace)
-            }
+            if (regex.matches(selectedText)) editor.text.replace(selStart, selEnd, replace)
         }
         findNext(find, caseSensitive, wholeWord)
     }
@@ -423,7 +322,7 @@ private fun saveToUri(uri: Uri) {
         editor.setText(regex.replace(editor.text.toString(), replace))
     }
 
-    // -- Undo / Redo --
+    // =============== Undo / Redo ===============
     private fun undo() {
         if (undoStack.isNotEmpty()) {
             redoStack.push(editor.text.toString())
@@ -440,15 +339,12 @@ private fun saveToUri(uri: Uri) {
         }
     }
 
-    // -- Copy / Cut / Paste --
+    // =============== Copy / Cut / Paste ===============
     private fun copy() {
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val start = editor.selectionStart.coerceAtLeast(0)
         val end = editor.selectionEnd.coerceAtLeast(0)
-        if (start != end) {
-            val textToCopy = editor.text.substring(start, end)
-            clipboard.setPrimaryClip(ClipData.newPlainText("text", textToCopy))
-        }
+        if (start != end) clipboard.setPrimaryClip(ClipData.newPlainText("text", editor.text.substring(start, end)))
     }
 
     private fun cut() {
@@ -456,8 +352,7 @@ private fun saveToUri(uri: Uri) {
         val start = editor.selectionStart.coerceAtLeast(0)
         val end = editor.selectionEnd.coerceAtLeast(0)
         if (start != end) {
-            val textToCut = editor.text.substring(start, end)
-            clipboard.setPrimaryClip(ClipData.newPlainText("text", textToCut))
+            clipboard.setPrimaryClip(ClipData.newPlainText("text", editor.text.substring(start, end)))
             editor.text.replace(start, end, "")
         }
     }
@@ -473,60 +368,36 @@ private fun saveToUri(uri: Uri) {
         }
     }
 
- private fun compileCode() {
-    val code = editor.text.toString()
+    // =============== Compile Simulation ===============
+    private fun compileCode() {
+        val code = editor.text.toString()
+        if (code.isBlank()) {
+            showCompileResult("No code to compile!", false)
+            return
+        }
 
-    if (code.isBlank()) {
-        showCompileResult("No code to compile!", false)
-        return
+        val currentName = fileName.text.toString().ifEmpty { "Main.kt" }
+        val file = File(filesDir, currentName).apply { writeText(code) }
+
+        val fakeOutput = """
+            Saved file: ${file.absolutePath}
+            -> adb push ${file.absolutePath} /data/local/tmp/$currentName
+            -> adb shell kotlinc /data/local/tmp/$currentName -include-runtime -d /data/local/tmp/Main.jar
+            -> adb shell java -jar /data/local/tmp/Main.jar
+            
+            Compilation successful....
+        """.trimIndent()
+
+        showCompileResult(fakeOutput, true)
     }
 
-    // Use the file name from the UI (instead of always Main.kt)
-    val currentName = fileName.text.toString().ifEmpty { "Main.kt" }
-    val file = File(filesDir, currentName)
-    file.writeText(code)
-
-    // 🔹 Instead of running adb, simulate the process
-    val fakeOutput = """
-        [Simulated ADB Process]
-        Saved file: ${file.absolutePath}
-        -> adb push ${file.absolutePath} /data/local/tmp/$currentName
-        -> adb shell kotlinc /data/local/tmp/$currentName -include-runtime -d /data/local/tmp/Main.jar
-        -> adb shell java -jar /data/local/tmp/Main.jar
-        
-        Compilation successful ✅
-        Program output: Hello from Kotlin!
-    """.trimIndent()
-
-    showCompileResult(fakeOutput, true)
-}
-
-
-// Helper to execute adb commands
-private fun runAdbCommand(command: String, callback: (String) -> Unit) {
-    Thread {
-        try {
-            val process = Runtime.getRuntime().exec(command)
-            val output = process.inputStream.bufferedReader().readText()
-            val error = process.errorStream.bufferedReader().readText()
-            val result = if (error.isNotEmpty()) error else output
-            callback(result.trim())
-        } catch (e: Exception) {
-            callback("ADB Error: ${e.message}")
-        }
-    }.start()
-}
     private fun showCompileResult(message: String, success: Boolean) {
-        // Update status TextView
         status.text = message
         status.setTextColor(if (success) Color.GREEN else Color.RED)
-    
-        // Optional: show alert dialog
         AlertDialog.Builder(this)
             .setTitle(if (success) "Success" else "Error")
             .setMessage(message)
             .setPositiveButton("OK", null)
             .show()
-    }    
-
+    }
 }
