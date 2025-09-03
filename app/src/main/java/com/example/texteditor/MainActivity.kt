@@ -308,14 +308,23 @@ class MainActivity : AppCompatActivity() {
         undoStack.clear()
         redoStack.clear()
     }
-
-    private fun saveToUri(uri: Uri) {
-        contentResolver.openOutputStream(uri)?.bufferedWriter().use {
-            it?.write(editor.text.toString())
-        }
-        currentFileUri = uri
-        fileName.text = getFileName(uri)
+private fun saveToUri(uri: Uri) {
+    contentResolver.openOutputStream(uri)?.bufferedWriter().use {
+        it?.write(editor.text.toString())
     }
+    currentFileUri = uri
+    val name = getFileName(uri)
+    fileName.text = name
+
+    // 🔹 Detect extension and set correct rule
+    val extension = name.substringAfterLast('.', "").lowercase(Locale.getDefault())
+    activeRule = allRules?.rules?.find { it.fileExtensions.contains(extension) }
+        ?: allRules?.rules?.find { it.name == "kotlin" } // fallback
+
+    // Re-apply syntax highlighting
+    editor.text?.let { activeRule?.let { rule -> applySyntaxHighlighting(it, rule) } }
+}
+
 
     private fun getFileName(uri: Uri): String {
         var name = "untitled.kt"
