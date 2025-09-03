@@ -8,4 +8,28 @@
     <color name="black_700">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="purple_500">#FF6200EE</color>
+
+    <!-- App background -->
+    <color name="app_background">#FFFFFF</color>
+    <color name="toolbar_background">#000000</color>
+    <color name="bottom_bar_background">#000000</color>
+    <color name="sidebar_background">#111111</color>
+
+    <!-- Text -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#BBBBBB</color>
+    <color name="text_hint">#777777</color>
+    <color name="text_black">#000000</color>
+
+    <!-- Editor -->
+    <color name="editor_background">#FFFFFF</color>
+    <color name="line_number">#888888</color>
+    <color name="line_number_background">#F4F4F4</color>
+    <color name="status_background">#1C1C1C</color>
+
+    <!-- Icons -->
+    <color name="icon_tint">#FFFFFF</color>
+
+    <!-- Navigation drawer items (selector handled below) -->
+
 </resources>

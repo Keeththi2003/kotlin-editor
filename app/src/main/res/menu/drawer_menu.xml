@@ -1,0 +1,23 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/nav_new"
+        android:title="New File"
+        android:icon="@drawable/ic_note_add_24" />
+
+    <item
+        android:id="@+id/nav_open"
+        android:title="Open"
+        android:icon="@drawable/ic_folder_open_24" />
+
+    <item
+        android:id="@+id/nav_save"
+        android:title="Save"
+        android:icon="@drawable/ic_save_24" />
+
+    <item
+        android:id="@+id/nav_find"
+        android:title="Find/Replace"
+        android:icon="@drawable/ic_search_24" />
+
+</menu>

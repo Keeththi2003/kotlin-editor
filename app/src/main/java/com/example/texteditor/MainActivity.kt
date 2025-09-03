@@ -22,6 +22,11 @@ import java.io.InputStream
 import java.util.*
 import java.util.regex.Pattern
 import java.io.File
+import android.view.MenuItem
+import androidx.drawerlayout.widget.DrawerLayout
+import com.google.android.material.navigation.NavigationView
+import androidx.core.view.GravityCompat
+import com.google.android.material.navigation.NavigationView.OnNavigationItemSelectedListener
 
 
 // Represents a single language's syntax rules
@@ -150,27 +155,49 @@ class MainActivity : AppCompatActivity() {
 
         editor.viewTreeObserver.addOnGlobalLayoutListener { updateLineNumbers() }
 
-        // Hamburger menu
-        menuButton.setOnClickListener {
-            val popup = PopupMenu(this, it)
-            popup.menu.add("New File")
-            popup.menu.add("Open")
-            popup.menu.add("Save")
-            popup.menu.add("Find/Replace")
-            popup.setOnMenuItemClickListener { item ->
-                when (item.title) {
-                    "New File" -> newFile()
-                    "Open" -> openFileLauncher.launch(arrayOf("*/*"))
-                    "Save" -> {
-                        if (currentFileUri != null) saveToUri(currentFileUri!!)
-                        else saveFileLauncher.launch("untitled.kt")
-                    }
-                    "Find/Replace" -> showFindReplaceDialog()
-                }
-                true
-            }
-            popup.show()
+        // // Hamburger menu
+        // menuButton.setOnClickListener {
+        //     val popup = PopupMenu(this, it)
+        //     popup.menu.add("New File")
+        //     popup.menu.add("Open")
+        //     popup.menu.add("Save")
+        //     popup.menu.add("Find/Replace")
+        //     popup.setOnMenuItemClickListener { item ->
+        //         when (item.title) {
+        //             "New File" -> newFile()
+        //             "Open" -> openFileLauncher.launch(arrayOf("*/*"))
+        //             "Save" -> {
+        //                 if (currentFileUri != null) saveToUri(currentFileUri!!)
+        //                 else saveFileLauncher.launch("untitled.kt")
+        //             }
+        //             "Find/Replace" -> showFindReplaceDialog()
+        //         }
+        //         true
+        //     }
+        //     popup.show()
+        // }
+
+
+        val drawerLayout = findViewById<DrawerLayout>(R.id.drawerLayout)
+val navigationView = findViewById<NavigationView>(R.id.navigationView)
+
+menuButton.setOnClickListener {
+    drawerLayout.openDrawer(navigationView)
+}
+navigationView.setNavigationItemSelectedListener { item: MenuItem ->
+    when (item.itemId) {
+        R.id.nav_new -> newFile()
+        R.id.nav_open -> openFileLauncher.launch(arrayOf("*/*"))
+        R.id.nav_save -> {
+            if (currentFileUri != null) saveToUri(currentFileUri!!)
+            else saveFileLauncher.launch("untitled.kt")
         }
+        R.id.nav_find -> showFindReplaceDialog()
+    }
+    drawerLayout.closeDrawers()
+    true
+}
+
 
         // Top toolbar
         undoButton.setOnClickListener { undo() }
